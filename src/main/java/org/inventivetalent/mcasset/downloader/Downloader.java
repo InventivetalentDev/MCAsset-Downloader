@@ -107,6 +107,8 @@ public class Downloader {
 		}
 
 		// Create extract directories
+		System.out.println();
+		System.out.println();
 		log.info("Cleaning up old files...");
 		File extractBaseDirectory = new File("extract");
 		if (extractBaseDirectory.exists()) {
