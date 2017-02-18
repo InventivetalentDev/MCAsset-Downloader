@@ -242,6 +242,7 @@ public class Downloader {
 
 				git.add()
 						.addFilepattern("assets")
+						.addFilepattern("version.json")
 						.call();
 				RevCommit commit = git.commit()
 						.setMessage("Create/Update assets for version " + version)
