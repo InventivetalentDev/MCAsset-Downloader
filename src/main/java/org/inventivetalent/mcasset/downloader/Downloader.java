@@ -236,6 +236,10 @@ public class Downloader {
 						.setMessage("Create/Update assets for version " + version)
 						.setCommitter("InventiveBot", gitEmail)
 						.call();
+				git.tag()
+						.setName(version)
+						.setForceUpdate(true)
+						.call();
 				git.push()
 						.setForce(true)
 						.setPushAll()
