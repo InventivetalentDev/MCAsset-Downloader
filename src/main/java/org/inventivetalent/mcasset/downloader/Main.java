@@ -7,7 +7,8 @@ public class Main {
 	public static void main(String[] args) {
 		Options options = new Options();
 
-		Option version = new Option("v", "version", true, "Version to download");
+		Option version = new Option("v", "version", true, "Version to download\n"
+				+ "Special versions: latest-release, latest-snapshot, all-releases, all-snapshots");
 		version.setRequired(true);
 		options.addOption(version);
 
