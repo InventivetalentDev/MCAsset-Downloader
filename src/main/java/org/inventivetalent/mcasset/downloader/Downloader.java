@@ -86,14 +86,17 @@ public class Downloader {
 
 	void downloadVersion(String version) {
 		if ("latest-release".equals(version)) {
+			log.info("Downloading latest release");
 			downloadVersion(this.versions.getLatest().getRelease());
 			return;
 		}
 		if ("latest-snapshot".equals(version)) {
+			log.info("Downloading latest snapshot");
 			downloadVersion(this.versions.getLatest().getSnapshot());
 			return;
 		}
 		if ("latest".equals(version)) {
+			log.info("Downloading latest release & snapshot");
 			downloadVersion(this.versions.getLatest().getRelease());
 			downloadVersion(this.versions.getLatest().getSnapshot());
 			return;
