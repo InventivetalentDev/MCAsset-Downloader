@@ -10,6 +10,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.lib.TextProgressMonitor;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.inventivetalent.mcasset.downloader.data.Version;
@@ -155,6 +156,7 @@ public class Downloader {
 						.setBranchesToClone(Arrays.asList("master", version))
 						.setDirectory(extractDirectory)
 						.setCredentialsProvider(credentialsProvider)
+						.setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
 						.call();
 				StoredConfig config = git.getRepository().getConfig();
 				config.setString("user", null, "email", gitEmail);
@@ -235,17 +237,19 @@ public class Downloader {
 				git.add()
 						.addFilepattern("assets")
 						.call();
-				git.commit()
+				RevCommit commit = git.commit()
 						.setMessage("Create/Update assets for version " + version)
 						.setCommitter("InventiveBot", gitEmail)
 						.call();
 				git.tag()
+						.setObjectId(commit)
 						.setName(version)
 						.setForceUpdate(true)
 						.call();
 				git.push()
 						.setForce(true)
 						.setPushAll()
+						.setPushTags()
 						.setCredentialsProvider(credentialsProvider)
 						.setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
 						.call();
