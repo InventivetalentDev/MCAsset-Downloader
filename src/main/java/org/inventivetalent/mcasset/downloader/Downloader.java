@@ -1,9 +1,6 @@
 package org.inventivetalent.mcasset.downloader;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.Git;
@@ -167,6 +164,15 @@ public class Downloader {
 				git.checkout().setForce(true).setName(version).call();
 			} else {
 				log.info("Git is disabled");
+			}
+
+			// Write meta file
+			File versionMetaFile = new File(extractDirectory, "version.json");
+			versionMetaFile.createNewFile();
+			versionObject.setDownloadTimestamp(System.currentTimeMillis());
+			try (BufferedWriter writer = new BufferedWriter(new FileWriter(versionMetaFile))) {
+				new GsonBuilder().setPrettyPrinting().create()
+						.toJson(versionObject, writer);
 			}
 
 			// Download
