@@ -22,6 +22,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -148,8 +149,10 @@ public class Downloader {
 			if (gitEnabled) {
 				log.info("Initializing Git...");
 				credentialsProvider = new UsernamePasswordCredentialsProvider(gitEmail, gitPassword);
+				log.info("Cloning repository...");
 				git = Git.cloneRepository()
 						.setURI(gitRepo)
+						.setBranchesToClone(Arrays.asList("master", version))
 						.setDirectory(extractDirectory)
 						.setCredentialsProvider(credentialsProvider)
 						.call();
