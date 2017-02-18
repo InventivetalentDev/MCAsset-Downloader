@@ -83,6 +83,17 @@ public class Downloader {
 			return;
 		}
 
+		if ("all-snapshots".equals(version)) {
+			log.info("Downloading all snapshot versions...");
+			this.versions.getVersions().stream().filter(version1 -> "snapshot".equals(version1.getType())).forEach(version1 -> downloadVersion(version1.getId()));
+			return;
+		}
+		if ("all-releases".equals(version)) {
+			log.info("Downloading all release versions...");
+			this.versions.getVersions().stream().filter(version1 -> "release".equals(version1.getType())).forEach(version1 -> downloadVersion(version1.getId()));
+			return;
+		}
+
 		// Validate version
 		boolean valid = false;
 		for (Version version1 : versions.getVersions()) {
