@@ -149,6 +149,7 @@ public class Downloader {
 			HttpURLConnection connection = (HttpURLConnection) new URL(jarDownload).openConnection();
 			long totalFileSize = connection.getContentLength();
 			long downloadedFileSize = 0;
+			long totalMb = totalFileSize / 1024 / 1024;
 			try (BufferedInputStream input = new BufferedInputStream(connection.getInputStream())) {
 				try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(tempFile))) {
 					byte[] buffer = new byte[1024];
@@ -157,7 +158,8 @@ public class Downloader {
 						output.write(buffer, 0, length);
 						downloadedFileSize += length;
 
-						System.out.write(("\rDownloaded " + downloadedFileSize + "/" + totalFileSize).getBytes());
+						long downloadedMb = downloadedFileSize / 1024 / 1024;
+						System.out.write(("\rDownloaded " + downloadedMb + "MB/" + totalMb + "MB").getBytes());
 					}
 				}
 			}
