@@ -14,24 +14,31 @@ import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.inventivetalent.mcasset.downloader.data.Version;
 import org.inventivetalent.mcasset.downloader.data.Versions;
+import org.inventivetalent.mcasset.downloader.data.asset.Asset;
+import org.inventivetalent.mcasset.downloader.data.asset.AssetObjects;
+import org.inventivetalent.mcasset.downloader.data.asset.VersionAssetDetails;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Log4j2
 public class Downloader {
 
-	static final String VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-	static final String JAR_FORMAT   = "https://s3.amazonaws.com/Minecraft.Download/versions/%s/%s.jar";
+	static final String VERSIONS_URL          = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+	static final String JAR_FORMAT            = "https://s3.amazonaws.com/Minecraft.Download/versions/%s/%s.jar";
+	static final String EXTERNAL_ASSET_FORMAT = "http://resources.download.minecraft.net/%s/%s";
 
-	String gitRepo     = "https://github.com/InventivetalentDev/minecraft-assets.git";
-	String gitEmail    = "user@example.com";
-	String gitPassword = "myPassword";
+	boolean gitEnabled  = true;
+	String  gitRepo     = "https://github.com/InventivetalentDev/minecraft-assets.git";
+	String  gitEmail    = "user@example.com";
+	String  gitPassword = "myPassword";
 
 	Versions versions;
 
@@ -60,6 +67,10 @@ public class Downloader {
 		this.gitRepo = properties.getProperty("git.repo");
 		this.gitEmail = properties.getProperty("git.email");
 		this.gitPassword = properties.getProperty("git.password");
+	}
+
+	public void setGitEnabled(boolean gitEnabled) {
+		this.gitEnabled = gitEnabled;
 	}
 
 	public void initVersions() {
@@ -95,14 +106,14 @@ public class Downloader {
 		}
 
 		// Validate version
-		boolean valid = false;
+		Version versionObject = null;
 		for (Version version1 : versions.getVersions()) {
 			if (version1.getId().equals(version)) {
-				valid = true;
+				versionObject = version1;
 				break;
 			}
 		}
-		if (!valid) {
+		if (versionObject == null) {
 			throw new IllegalArgumentException("Version " + version + " does not exist in index");
 		}
 
@@ -124,45 +135,33 @@ public class Downloader {
 
 		try {
 			// Init git
-			log.info("Initializing Git...");
-			CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(gitEmail, gitPassword);
-			Git git = Git.cloneRepository()
-					.setURI(gitRepo)
-					.setDirectory(extractDirectory)
-					.setCredentialsProvider(credentialsProvider)
-					.call();
-			StoredConfig config = git.getRepository().getConfig();
-			config.setString("user", null, "email", gitEmail);
-			config.save();
+			Git git = null;
+			CredentialsProvider credentialsProvider = null;
+			if (gitEnabled) {
+				log.info("Initializing Git...");
+				credentialsProvider = new UsernamePasswordCredentialsProvider(gitEmail, gitPassword);
+				git = Git.cloneRepository()
+						.setURI(gitRepo)
+						.setDirectory(extractDirectory)
+						.setCredentialsProvider(credentialsProvider)
+						.call();
+				StoredConfig config = git.getRepository().getConfig();
+				config.setString("user", null, "email", gitEmail);
+				config.save();
 
-			// git checkout
-			git.branchCreate().setName(version).call();
-			git.checkout().setForce(true).setName(version).call();
+				// git checkout
+				git.branchCreate().setName(version).call();
+				git.checkout().setForce(true).setName(version).call();
+			} else {
+				log.info("Git is disabled");
+			}
 
 			// Download
 			log.info("Downloading version " + version + "...");
 
 			String jarDownload = String.format(JAR_FORMAT, version, version);
-
 			File tempFile = Files.createTempFile("mcasset-downloader", "").toFile();
-
-			HttpURLConnection connection = (HttpURLConnection) new URL(jarDownload).openConnection();
-			long totalFileSize = connection.getContentLength();
-			long downloadedFileSize = 0;
-			long totalMb = totalFileSize / 1024 / 1024;
-			try (BufferedInputStream input = new BufferedInputStream(connection.getInputStream())) {
-				try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(tempFile))) {
-					byte[] buffer = new byte[1024];
-					int length;
-					while ((length = input.read(buffer, 0, 1024)) > 0) {
-						output.write(buffer, 0, length);
-						downloadedFileSize += length;
-
-						long downloadedMb = downloadedFileSize / 1024 / 1024;
-						System.out.write(("\rDownloaded " + downloadedMb + "MB/" + totalMb + "MB").getBytes());
-					}
-				}
-			}
+			downloadFile(jarDownload, tempFile, null);
 			System.out.println();
 
 			// Extract assets
@@ -193,23 +192,75 @@ public class Downloader {
 			// Delete temporary file
 			tempFile.delete();
 
-			log.info("Pushing changes to remote repo...");
+			// Download external assets
+			log.info("Downloading external assets...");
+			VersionAssetDetails versionDetails = new Gson().fromJson(new JsonParser().parse(readUrl(versionObject.getUrl())), VersionAssetDetails.class);
+			AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
 
-			git.add()
-					.addFilepattern("assets")
-					.call();
-			git.commit()
-					.setMessage("Create/Update assets for version " + version)
-					.setCommitter("InventiveBot", gitEmail)
-					.call();
-			git.push()
-					.setForce(true)
-					.setPushAll()
-					.setCredentialsProvider(credentialsProvider)
-					.setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
-					.call();
+			AtomicInteger count = new AtomicInteger();
+			for (Map.Entry<String, Asset> entry : assets.getObjects().entrySet()) {
+				String assetDownload = String.format(EXTERNAL_ASSET_FORMAT, entry.getValue().getHash().substring(0, 2), entry.getValue().getHash());
+				File assetOutput = new File(extractDirectory, "assets/" + entry.getKey());
+				new File(assetOutput.getParent()).mkdirs();
+				count.incrementAndGet();
+				downloadFile(assetDownload, assetOutput, new ProgressCallback() {
+					@Override
+					public void call(double now, double total) {
+						try {
+							String a = "Downloading asset " + (count.get()) + "/" + assets.getObjects().size();
+							String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
+							System.out.write(("\r" + String.format("%-30s %s", a, b)).getBytes());
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				});
+			}
+			System.out.println();
+
+			if (gitEnabled) {
+				log.info("Pushing changes to remote repo...");
+
+				git.add()
+						.addFilepattern("assets")
+						.call();
+				git.commit()
+						.setMessage("Create/Update assets for version " + version)
+						.setCommitter("InventiveBot", gitEmail)
+						.call();
+				git.push()
+						.setForce(true)
+						.setPushAll()
+						.setCredentialsProvider(credentialsProvider)
+						.setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
+						.call();
+			}
 		} catch (IOException | GitAPIException e) {
 			throw new RuntimeException(e);
+		}
+	}
+
+	void downloadFile(String inputUrl, File outputFile, ProgressCallback callback) throws IOException {
+		HttpURLConnection connection = (HttpURLConnection) new URL(inputUrl).openConnection();
+		long totalFileSize = connection.getContentLength();
+		long downloadedFileSize = 0;
+		double totalMb = totalFileSize / 1024.0D / 1024.0D;
+		try (BufferedInputStream input = new BufferedInputStream(connection.getInputStream())) {
+			try (BufferedOutputStream output = new BufferedOutputStream(new FileOutputStream(outputFile))) {
+				byte[] buffer = new byte[1024];
+				int length;
+				while ((length = input.read(buffer, 0, 1024)) > 0) {
+					output.write(buffer, 0, length);
+					downloadedFileSize += length;
+
+					double downloadedMb = (double) downloadedFileSize / 1024.0D / 1024.0D;
+					if (callback != null) {
+						callback.call(downloadedMb, totalMb);
+					} else {
+						System.out.write(("\rDownloaded " + (Math.round(downloadedMb * 100.0) / 100.0) + "MB/" + (Math.round(totalMb * 100.0) / 100.0) + "MB").getBytes());
+					}
+				}
+			}
 		}
 	}
 
