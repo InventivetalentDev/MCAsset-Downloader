@@ -5,6 +5,7 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -160,8 +161,10 @@ public class Downloader {
 				config.save();
 
 				// git checkout
-				git.branchCreate().setName(version).call();
-				git.checkout().setForce(true).setName(version).call();
+				Ref checkout = git.checkout().setName(version).call();
+				if (checkout == null) {
+					git.branchCreate().setName(version).call();
+				}
 			} else {
 				log.info("Git is disabled");
 			}
