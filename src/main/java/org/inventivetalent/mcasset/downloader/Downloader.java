@@ -166,23 +166,24 @@ public class Downloader {
 			// Extract assets
 			System.out.println("Extracting archive...");
 
-			ZipInputStream zipInputStream = new ZipInputStream(new BufferedInputStream(new FileInputStream(tempFile)));
-			ZipEntry zipEntry;
+			try (ZipInputStream zipInputStream = new ZipInputStream(new BufferedInputStream(new FileInputStream(tempFile)))) {
+				ZipEntry zipEntry;
 
-			int count = 0;
-			byte[] buffer = new byte[1024];
-			while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-				if (zipEntry.getName().startsWith("assets")) {
-					File extractFile = new File(extractDirectory, zipEntry.getName());
-					new File(extractFile.getParent()).mkdirs();
-					FileOutputStream outputStream = new FileOutputStream(extractFile);
+				int count = 0;
+				byte[] buffer = new byte[1024];
+				while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+					if (zipEntry.getName().startsWith("assets")) {
+						File extractFile = new File(extractDirectory, zipEntry.getName());
+						new File(extractFile.getParent()).mkdirs();
+						try (FileOutputStream outputStream = new FileOutputStream(extractFile)) {
+							int length;
+							while ((length = zipInputStream.read(buffer)) > 0) {
+								outputStream.write(buffer, 0, length);
+							}
+						}
 
-					int length;
-					while ((length = zipInputStream.read(buffer)) > 0) {
-						outputStream.write(buffer, 0, length);
+						System.out.write(("\rExtracted " + (count++) + " asset files").getBytes());
 					}
-
-					System.out.write(("\rExtracted " + (count++) + " asset files").getBytes());
 				}
 			}
 			System.out.println();
