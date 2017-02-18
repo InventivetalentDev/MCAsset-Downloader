@@ -12,6 +12,9 @@ public class Main {
 		version.setRequired(true);
 		options.addOption(version);
 
+		Option disableGit = new Option("G", "disable-git", false, "Whether to disable git push");
+		options.addOption(disableGit);
+
 		CommandLineParser parser = new BasicParser();
 		CommandLine cmd;
 		try {
@@ -23,9 +26,13 @@ public class Main {
 			return;
 		}
 
-		// Start downloader
+//		// Start downloader
 		Downloader downloader = new Downloader();
 		downloader.readConfig();
+		if (cmd.hasOption("disable-git")) {
+			downloader.setGitEnabled(false);
+		}
+
 		downloader.initVersions();
 		downloader.downloadVersion(cmd.getOptionValue("version"));
 	}
