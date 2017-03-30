@@ -161,7 +161,7 @@ public class Downloader {
 				config.save();
 
 				// git checkout
-				Ref checkout = git.checkout().setName(version).call();
+				Ref checkout = git.checkout().setName(version).setCreateBranch(true).call();
 				if (checkout == null) {
 					git.branchCreate().setName(version).call();
 				}
