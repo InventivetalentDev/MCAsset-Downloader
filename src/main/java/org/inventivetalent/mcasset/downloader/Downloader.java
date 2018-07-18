@@ -210,6 +210,7 @@ public class Downloader {
 				int count1=0;
 				byte[] buffer = new byte[1024];
 				while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+					log.info(zipEntry.getName());
 					if (zipEntry.getName().startsWith("assets")) {
 						File extractFile = new File(extractDirectory, zipEntry.getName());
 						new File(extractFile.getParent()).mkdirs();
