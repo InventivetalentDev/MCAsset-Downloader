@@ -3,7 +3,6 @@ package org.inventivetalent.mcasset.downloader;
 import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
-import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
@@ -161,7 +160,7 @@ public class Downloader {
 				config.save();
 
 				// git checkout
-				Ref checkout = git.checkout().setName(version).setCreateBranch(true).setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK).call();
+				Ref checkout = git.checkout().setName(version).call();
 				if (checkout == null) {
 					git.branchCreate().setName(version).call();
 
@@ -208,6 +207,7 @@ public class Downloader {
 				ZipEntry zipEntry;
 
 				int count = 0;
+				int count1=0;
 				byte[] buffer = new byte[1024];
 				while ((zipEntry = zipInputStream.getNextEntry()) != null) {
 					if (zipEntry.getName().startsWith("assets")) {
@@ -232,7 +232,7 @@ public class Downloader {
 							}
 						}
 
-						System.out.write(("\rExtracted " + (count++) + " data files").getBytes());
+						System.out.write(("\rExtracted " + (count1++) + " data files").getBytes());
 					}
 				}
 			}
