@@ -3,6 +3,7 @@ package org.inventivetalent.mcasset.downloader;
 import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
+import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
@@ -160,7 +161,7 @@ public class Downloader {
 				config.save();
 
 				// git checkout
-				Ref checkout = git.checkout().setName(version).setCreateBranch(true).call();
+				Ref checkout = git.checkout().setName(version).setCreateBranch(true).setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK).call();
 				if (checkout == null) {
 					git.branchCreate().setName(version).call();
 
