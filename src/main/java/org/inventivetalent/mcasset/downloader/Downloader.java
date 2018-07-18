@@ -167,6 +167,9 @@ public class Downloader {
 					git.add()
 							.addFilepattern("assets")
 							.call();
+					git.add()
+							.addFilepattern("data")
+							.call();
 					git.commit()
 							.setMessage("Create new branch for version " + version)
 							.setCommitter("InventiveBot", gitEmail)
@@ -218,6 +221,18 @@ public class Downloader {
 
 						System.out.write(("\rExtracted " + (count++) + " asset files").getBytes());
 					}
+					if (zipEntry.getName().startsWith("data")) {
+						File extractFile = new File(extractDirectory, zipEntry.getName());
+						new File(extractFile.getParent()).mkdirs();
+						try (FileOutputStream outputStream = new FileOutputStream(extractFile)) {
+							int length;
+							while ((length = zipInputStream.read(buffer)) > 0) {
+								outputStream.write(buffer, 0, length);
+							}
+						}
+
+						System.out.write(("\rExtracted " + (count++) + " data files").getBytes());
+					}
 				}
 			}
 			System.out.println();
@@ -254,6 +269,7 @@ public class Downloader {
 
 				git.add()
 						.addFilepattern("assets")
+						.addFilepattern("data")
 						.addFilepattern("version.json")
 						.call();
 				RevCommit commit = git.commit()
