@@ -32,7 +32,6 @@ import java.util.zip.ZipInputStream;
 public class Downloader {
 
 	static final String VERSIONS_URL          = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-	static final String JAR_FORMAT            = "https://s3.amazonaws.com/Minecraft.Download/versions/%s/%s.jar";
 	static final String EXTERNAL_ASSET_FORMAT = "http://resources.download.minecraft.net/%s/%s";
 
 	boolean gitEnabled  = true;
@@ -164,6 +163,14 @@ public class Downloader {
 				Ref checkout = git.checkout().setName(version).setCreateBranch(true).call();
 				if (checkout == null) {
 					git.branchCreate().setName(version).call();
+
+					git.add()
+							.addFilepattern("assets")
+							.call();
+					git.commit()
+							.setMessage("Create new branch for version " + version)
+							.setCommitter("InventiveBot", gitEmail)
+							.call();
 				}
 			} else {
 				log.info("Git is disabled");
@@ -178,10 +185,14 @@ public class Downloader {
 						.toJson(versionObject, writer);
 			}
 
+			VersionAssetDetails versionDetails = new Gson().fromJson(new JsonParser().parse(readUrl(versionObject.getUrl())), VersionAssetDetails.class);
+
+			AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
+
 			// Download
 			log.info("Downloading version " + version + "...");
 
-			String jarDownload = String.format(JAR_FORMAT, version, version);
+			String jarDownload = versionDetails.getDownloads().getClient().getUrl();
 			File tempFile = Files.createTempFile("mcasset-downloader", "").toFile();
 			downloadFile(jarDownload, tempFile, null);
 			System.out.println();
@@ -216,8 +227,6 @@ public class Downloader {
 
 			// Download external assets
 			log.info("Downloading external assets...");
-			VersionAssetDetails versionDetails = new Gson().fromJson(new JsonParser().parse(readUrl(versionObject.getUrl())), VersionAssetDetails.class);
-			AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
 
 			AtomicInteger count = new AtomicInteger();
 			for (Map.Entry<String, Asset> entry : assets.getObjects().entrySet()) {
