@@ -169,7 +169,7 @@ public class Downloader {
 				} catch (RefNotFoundException ignored) {
 				}
 				if (checkout == null) {
-					git.branchCreate().setName(safeVersion).call();
+					checkout = git.branchCreate().setName(safeVersion).call();
 
 					git.add()
 							.addFilepattern("assets")
@@ -181,6 +181,8 @@ public class Downloader {
 							.setMessage("Create new branch for version " + safeVersion)
 							.setCommitter("InventiveBot", gitEmail)
 							.call();
+
+					checkout = git.checkout().setName(safeVersion).call();
 				}
 			} else {
 				log.info("Git is disabled");
