@@ -162,7 +162,11 @@ public class Downloader {
 				config.save();
 
 				// git checkout
-				Ref checkout = git.checkout().setName(safeVersion).call();
+				Ref checkout = null;
+				try {
+				    checkout = git.checkout().setName(safeVersion).call();
+				} catch (RefNotFoundException ignored) {
+				}
 				if (checkout == null) {
 					git.branchCreate().setName(safeVersion).call();
 
