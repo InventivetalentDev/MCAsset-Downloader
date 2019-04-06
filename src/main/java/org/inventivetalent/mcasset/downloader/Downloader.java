@@ -124,6 +124,8 @@ public class Downloader {
 			throw new IllegalArgumentException("Version " + version + " does not exist in index");
 		}
 
+		String safeVersion = version.replace("_", "__").replace(" ", "_");
+
 		// Create extract directories
 		System.out.println();
 		System.out.println();
@@ -137,7 +139,7 @@ public class Downloader {
 			}
 		}
 		extractBaseDirectory.mkdirs();
-		File extractDirectory = new File(extractBaseDirectory, version);
+		File extractDirectory = new File(extractBaseDirectory, safeVersion);
 		if (!extractDirectory.exists()) { extractDirectory.mkdirs(); }
 
 		try {
@@ -150,7 +152,7 @@ public class Downloader {
 				log.info("Cloning repository...");
 				git = Git.cloneRepository()
 						.setURI(gitRepo)
-						.setBranchesToClone(Arrays.asList("master", version))
+						.setBranchesToClone(Arrays.asList("master", safeVersion))
 						.setDirectory(extractDirectory)
 						.setCredentialsProvider(credentialsProvider)
 						.setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
@@ -160,9 +162,9 @@ public class Downloader {
 				config.save();
 
 				// git checkout
-				Ref checkout = git.checkout().setName(version).call();
+				Ref checkout = git.checkout().setName(safeVersion).call();
 				if (checkout == null) {
-					git.branchCreate().setName(version).call();
+					git.branchCreate().setName(safeVersion).call();
 
 					git.add()
 							.addFilepattern("assets")
@@ -171,7 +173,7 @@ public class Downloader {
 							.addFilepattern("data")
 							.call();
 					git.commit()
-							.setMessage("Create new branch for version " + version)
+							.setMessage("Create new branch for version " + safeVersion)
 							.setCommitter("InventiveBot", gitEmail)
 							.call();
 				}
@@ -280,7 +282,7 @@ public class Downloader {
 						.call();
 				git.tag()
 						.setObjectId(commit)
-						.setName(version)
+						.setName(safeVersion)
 						.setForceUpdate(true)
 						.call();
 				git.push()
