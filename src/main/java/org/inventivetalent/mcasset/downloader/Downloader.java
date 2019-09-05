@@ -180,6 +180,8 @@ public class Downloader {
 							.call();
 					git.add()
 							.addFilepattern("mappings");
+					git.add()
+							.addFilepattern(versionObject.getId() + ".json");
 					git.commit()
 							.setMessage("Create new branch for version " + safeVersion)
 							.setCommitter("InventiveBot", gitEmail)
@@ -318,6 +320,7 @@ public class Downloader {
 						.addFilepattern("assets")
 						.addFilepattern("data")
 						.addFilepattern("mappings")
+						.addFilepattern(versionObject.getId() + ".json")
 						.addFilepattern("version.json")
 						.call();
 				RevCommit commit = git.commit()
