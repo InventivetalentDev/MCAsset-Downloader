@@ -6,6 +6,8 @@ import lombok.Data;
 public class Downloads {
 
 	Download client;
+	Download clientMappings;
 	Download server;
+	Download serverMappings;
 
 }

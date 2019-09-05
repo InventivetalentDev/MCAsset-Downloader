@@ -12,6 +12,7 @@ import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.inventivetalent.mcasset.downloader.data.Downloads;
 import org.inventivetalent.mcasset.downloader.data.Version;
 import org.inventivetalent.mcasset.downloader.data.Versions;
 import org.inventivetalent.mcasset.downloader.data.asset.Asset;
@@ -177,6 +178,8 @@ public class Downloader {
 					git.add()
 							.addFilepattern("data")
 							.call();
+					git.add()
+							.addFilepattern("mappings");
 					git.commit()
 							.setMessage("Create new branch for version " + safeVersion)
 							.setCommitter("InventiveBot", gitEmail)
@@ -275,12 +278,46 @@ public class Downloader {
 			}
 			System.out.println();
 
+			Downloads downloads = versionDetails.getDownloads();
+			if(downloads.getClientMappings()!=null&&downloads.getServerMappings()!=null) {
+				// Download mappings
+				log.info("Downloading mappings...");
+				File mappingsOut = new File(extractDirectory, "mappings");
+
+				downloadFile(downloads.getClientMappings().getUrl(), new File(mappingsOut, "client.txt"), new ProgressCallback() {
+					@Override
+					public void call(double now, double total) {
+						try {
+							System.out.println("client.txt");
+							String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
+							System.out.write(("\r" + String.format("%s", b)).getBytes());
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				});
+				downloadFile(downloads.getServerMappings().getUrl(), new File(mappingsOut, "server.txt"), new ProgressCallback() {
+					@Override
+					public void call(double now, double total) {
+						try {
+							System.out.println("server.txt");
+							String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
+							System.out.write(("\r" + String.format("%s", b)).getBytes());
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				});
+			}
+
+
 			if (gitEnabled) {
 				log.info("Pushing changes to remote repo...");
 
 				git.add()
 						.addFilepattern("assets")
 						.addFilepattern("data")
+						.addFilepattern("mappings")
 						.addFilepattern("version.json")
 						.call();
 				RevCommit commit = git.commit()
