@@ -166,7 +166,7 @@ public class Downloader {
 				// git checkout
 				Ref checkout = null;
 				try {
-				    checkout = git.checkout().setName(safeVersion).call();
+					checkout = git.checkout().setName(safeVersion).call();
 				} catch (RefNotFoundException ignored) {
 				}
 				if (checkout == null) {
@@ -201,6 +201,7 @@ public class Downloader {
 			}
 
 			VersionAssetDetails versionDetails = new Gson().fromJson(new JsonParser().parse(readUrl(versionObject.getUrl())), VersionAssetDetails.class);
+			downloadFile(versionObject.getUrl(), new File(extractDirectory, versionObject.getId() + ".json"), null);
 
 			AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
 
@@ -219,7 +220,7 @@ public class Downloader {
 				ZipEntry zipEntry;
 
 				int count = 0;
-				int count1=0;
+				int count1 = 0;
 				byte[] buffer = new byte[1024];
 				while ((zipEntry = zipInputStream.getNextEntry()) != null) {
 					log.info(zipEntry.getName());
@@ -279,7 +280,7 @@ public class Downloader {
 			System.out.println();
 
 			Downloads downloads = versionDetails.getDownloads();
-			if(downloads.getClientMappings()!=null&&downloads.getServerMappings()!=null) {
+			if (downloads.getClientMappings() != null && downloads.getServerMappings() != null) {
 				// Download mappings
 				log.info("Downloading mappings...");
 				File mappingsOut = new File(extractDirectory, "mappings");
@@ -309,7 +310,6 @@ public class Downloader {
 					}
 				});
 			}
-
 
 			if (gitEnabled) {
 				log.info("Pushing changes to remote repo...");
