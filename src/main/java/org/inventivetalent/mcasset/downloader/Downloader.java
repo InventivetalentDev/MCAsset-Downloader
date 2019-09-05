@@ -179,9 +179,11 @@ public class Downloader {
 							.addFilepattern("data")
 							.call();
 					git.add()
-							.addFilepattern("mappings");
+							.addFilepattern("mappings")
+							.call();
 					git.add()
-							.addFilepattern(versionObject.getId() + ".json");
+							.addFilepattern(versionObject.getId() + ".json")
+							.call();
 					git.commit()
 							.setMessage("Create new branch for version " + safeVersion)
 							.setCommitter("InventiveBot", gitEmail)
@@ -294,7 +296,7 @@ public class Downloader {
 						try {
 							System.out.println("client.txt");
 							String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
-							System.out.write(("\r" + String.format("%s", b)).getBytes());
+							System.out.write(("\r" + String.format("%-30s", b)).getBytes());
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
@@ -306,7 +308,7 @@ public class Downloader {
 						try {
 							System.out.println("server.txt");
 							String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
-							System.out.write(("\r" + String.format("%s", b)).getBytes());
+							System.out.write(("\r" + String.format("%-30s", b)).getBytes());
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
