@@ -286,6 +286,7 @@ public class Downloader {
 				// Download mappings
 				log.info("Downloading mappings...");
 				File mappingsOut = new File(extractDirectory, "mappings");
+				mappingsOut.mkdirs();
 
 				downloadFile(downloads.getClientMappings().getUrl(), new File(mappingsOut, "client.txt"), new ProgressCallback() {
 					@Override
