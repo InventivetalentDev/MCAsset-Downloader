@@ -10,8 +10,7 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.*;
 import org.inventivetalent.mcasset.downloader.data.Downloads;
 import org.inventivetalent.mcasset.downloader.data.Version;
 import org.inventivetalent.mcasset.downloader.data.Versions;
@@ -171,25 +170,11 @@ public class Downloader {
                 }
                 if (checkout == null) {
                     checkout = git.branchCreate().setName(safeVersion).call();
-
-                    git.add()
-                            .addFilepattern("assets")
-                            .call();
-                    git.add()
-                            .addFilepattern("data")
-                            .call();
-                    git.add()
-                            .addFilepattern("mappings")
-                            .call();
-                    git.add()
-                            .addFilepattern(versionObject.getId() + ".json")
-                            .call();
+                    checkout = git.checkout().setName(safeVersion).call();
                     git.commit()
                             .setMessage("Create new branch for version " + safeVersion)
                             .setCommitter("InventiveBot", gitEmail)
                             .call();
-
-                    checkout = git.checkout().setName(safeVersion).call();
                 }
             } else {
                 log.info("Git is disabled");
@@ -255,7 +240,6 @@ public class Downloader {
                 int count1 = 0;
                 byte[] buffer = new byte[1024];
                 while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-                    log.info(zipEntry.getName());
                     if (zipEntry.getName().startsWith("assets")) {
                         File extractFile = new File(extractDirectory, zipEntry.getName());
                         new File(extractFile.getParent()).mkdirs();
@@ -266,7 +250,7 @@ public class Downloader {
                             }
                         }
 
-                        System.out.write(("\rExtracted " + (count++) + " asset files").getBytes());
+                        System.out.write(("\rExtracted " + (count++) + " asset files " + zipEntry.getName()).getBytes());
                     }
                     if (zipEntry.getName().startsWith("data")) {
                         File extractFile = new File(extractDirectory, zipEntry.getName());
@@ -278,7 +262,7 @@ public class Downloader {
                             }
                         }
 
-                        System.out.write(("\rExtracted " + (count1++) + " data files").getBytes());
+                        System.out.write(("\rExtracted " + (count1++) + " data files " + zipEntry.getName()).getBytes());
                     }
                 }
             }
@@ -322,27 +306,27 @@ public class Downloader {
                     @Override
                     public void call(double now, double total) {
                         try {
-                            System.out.println("client.txt");
                             String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
-                            System.out.write(("\r" + String.format("%-30s", b)).getBytes());
+                            System.out.write(("\rclient.txt " + String.format("%-30s", b)).getBytes());
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                     }
                 });
+                System.out.println();
                 downloadFile(downloads.getServerMappings().getUrl(), new File(mappingsOut, "server.txt"), new ProgressCallback() {
                     @Override
                     public void call(double now, double total) {
                         try {
-                            System.out.println("server.txt");
                             String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
-                            System.out.write(("\r" + String.format("%-30s", b)).getBytes());
+                            System.out.write(("\rserver.txt " + String.format("%-30s", b)).getBytes());
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                     }
                 });
             }
+            System.out.println();
 
             if (gitEnabled) {
                 log.info("Pushing changes to remote repo...");
@@ -351,16 +335,20 @@ public class Downloader {
                         .addFilepattern(".")
                         .call();
                 RevCommit commit = git.commit()
+                        .setAll(true)
+                        .setAllowEmpty(true)
                         .setMessage("Create/Update assets for version " + version)
                         .setCommitter("InventiveBot", gitEmail)
                         .call();
-                git.tag()
+                System.out.println(commit.getId() + "  " + commit.getShortMessage());
+                Ref ref = git.tag()
                         .setObjectId(commit)
                         .setName(safeVersion)
                         .setForceUpdate(true)
                         .call();
-                git.push()
-                        .setForce(true)
+                System.out.println(ref.getName());
+                Iterable<PushResult> result = git.push()
+                        .setRemote("origin")
                         .setPushAll()
                         .setPushTags()
                         .setCredentialsProvider(credentialsProvider)
@@ -370,6 +358,7 @@ public class Downloader {
         } catch (IOException | GitAPIException e) {
             throw new RuntimeException(e);
         }
+        System.out.println();
 
         System.out.println("Finished downloading " + version);
     }
