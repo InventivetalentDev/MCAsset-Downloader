@@ -195,9 +195,6 @@ public class Downloader {
 				log.info("Git is disabled");
 			}
 
-			// delete old data
-			FileUtils.cleanDirectory(extractDirectory);
-
 			// Write meta file
 			File versionMetaFile = new File(extractDirectory, "version.json");
 			versionMetaFile.createNewFile();
@@ -211,6 +208,11 @@ public class Downloader {
 			downloadFile(versionObject.getUrl(), new File(extractDirectory, versionObject.getId() + ".json"), null);
 
 			AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
+
+			// delete any old data
+			FileUtils.deleteDirectory(new File(extractDirectory, "assets"));
+			FileUtils.deleteDirectory(new File(extractDirectory, "data"));
+			FileUtils.deleteDirectory(new File(extractDirectory, "mappings"));
 
 			// Download
 			log.info("Downloading version " + version + "...");
