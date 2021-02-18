@@ -209,6 +209,20 @@ public class Downloader {
                 e.printStackTrace();
             }
 
+//            if (gitEnabled) {
+//                try {
+//                    git.rm()
+//                            .addFilepattern("assets")
+//                            .addFilepattern("data")
+//                            .addFilepattern("mappings")
+//                            .addFilepattern(versionObject.getId() + ".json")
+//                            .addFilepattern("version.json")
+//                            .call();
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//            }
+
             // Write meta file
             File versionMetaFile = new File(extractDirectory, "version.json");
             versionMetaFile.createNewFile();
@@ -334,11 +348,7 @@ public class Downloader {
                 log.info("Pushing changes to remote repo...");
 
                 git.add()
-                        .addFilepattern("assets")
-                        .addFilepattern("data")
-                        .addFilepattern("mappings")
-                        .addFilepattern(versionObject.getId() + ".json")
-                        .addFilepattern("version.json")
+                        .addFilepattern(".")
                         .call();
                 RevCommit commit = git.commit()
                         .setMessage("Create/Update assets for version " + version)
