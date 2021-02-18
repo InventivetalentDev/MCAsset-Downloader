@@ -210,9 +210,9 @@ public class Downloader {
 			AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
 
 			// delete any old data
-			new File(extractDirectory, "assets").delete();
-			new File(extractDirectory, "data").delete();
-			new File(extractDirectory, "mappings").delete();
+			FileUtils.deleteDirectory(new File(extractDirectory, "assets"));
+			FileUtils.deleteDirectory(new File(extractDirectory, "data"));
+			FileUtils.deleteDirectory(new File(extractDirectory, "mappings"));
 
 			// Download
 			log.info("Downloading version " + version + "...");
