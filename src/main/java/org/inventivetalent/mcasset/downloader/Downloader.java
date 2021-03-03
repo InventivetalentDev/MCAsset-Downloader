@@ -4,13 +4,14 @@ import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.transport.*;
+import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.inventivetalent.mcasset.downloader.data.Downloads;
 import org.inventivetalent.mcasset.downloader.data.Version;
 import org.inventivetalent.mcasset.downloader.data.Versions;
@@ -21,9 +22,11 @@ import org.inventivetalent.mcasset.downloader.data.asset.VersionAssetDetails;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
@@ -194,19 +197,19 @@ public class Downloader {
                 e.printStackTrace();
             }
 
-//            if (gitEnabled) {
-//                try {
-//                    git.rm()
-//                            .addFilepattern("assets")
-//                            .addFilepattern("data")
-//                            .addFilepattern("mappings")
-//                            .addFilepattern(versionObject.getId() + ".json")
-//                            .addFilepattern("version.json")
-//                            .call();
-//                } catch (Exception e) {
-//                    e.printStackTrace();
-//                }
-//            }
+            //            if (gitEnabled) {
+            //                try {
+            //                    git.rm()
+            //                            .addFilepattern("assets")
+            //                            .addFilepattern("data")
+            //                            .addFilepattern("mappings")
+            //                            .addFilepattern(versionObject.getId() + ".json")
+            //                            .addFilepattern("version.json")
+            //                            .call();
+            //                } catch (Exception e) {
+            //                    e.printStackTrace();
+            //                }
+            //            }
 
             // Write meta file
             File versionMetaFile = new File(extractDirectory, "version.json");
@@ -328,6 +331,8 @@ public class Downloader {
             }
             System.out.println();
 
+            createFileList(extractDirectory);
+
             if (gitEnabled) {
                 log.info("Pushing changes to remote repo...");
 
@@ -355,12 +360,42 @@ public class Downloader {
                         .setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
                         .call();
             }
-        } catch (IOException | GitAPIException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
         System.out.println();
 
         System.out.println("Finished downloading " + version);
+    }
+
+    void createFileList(File directory) {
+        if (!directory.isDirectory()) { return; }
+        JsonArray fileNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
+                .filter(File::isFile)
+                .map(File::getName)
+                .sorted()
+                .collect(JsonArray::new, JsonArray::add, JsonArray::add);
+        JsonArray directoryNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
+                .filter(File::isDirectory)
+                .map(File::getName)
+                .sorted()
+                .collect(JsonArray::new, JsonArray::add, JsonArray::add);
+        JsonObject json = new JsonObject();
+        json.add("directories", directoryNames);
+        json.add("files", fileNames);
+        File listFile = new File(directory, "_list.json");
+        try {
+            listFile.createNewFile();
+            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(listFile), StandardCharsets.UTF_8))) {
+                new Gson().toJson(json, writer);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        Arrays.stream(Objects.requireNonNull(directory.listFiles()))
+                .filter(File::isDirectory)
+                .forEach(this::createFileList);
     }
 
     void downloadFile(String inputUrl, File outputFile, ProgressCallback callback) throws IOException {
