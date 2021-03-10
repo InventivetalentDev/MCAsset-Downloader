@@ -378,6 +378,7 @@ public class Downloader {
         JsonArray directoryNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isDirectory)
                 .map(File::getName)
+                .filter(s -> !".git".equals(s))
                 .sorted()
                 .collect(JsonArray::new, JsonArray::add, JsonArray::add);
         JsonObject json = new JsonObject();
