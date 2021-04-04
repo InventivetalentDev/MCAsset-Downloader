@@ -1,8 +1,15 @@
 package org.inventivetalent.mcasset.downloader;
 
+import com.backblaze.b2.client.B2StorageClient;
+import com.backblaze.b2.client.B2StorageClientFactory;
+import com.backblaze.b2.client.contentSources.B2ContentTypes;
+import com.backblaze.b2.client.contentSources.B2FileContentSource;
+import com.backblaze.b2.client.structures.B2UploadFileRequest;
 import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.util.Strings;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.lib.Ref;
@@ -42,6 +49,9 @@ public class Downloader {
     String gitRepo = "https://github.com/InventivetalentDev/minecraft-assets.git";
     String gitEmail = "user@example.com";
     String gitPassword = "myPassword";
+    String b2Bucket = "";
+    String b2App = "";
+    String b2AppKey = "";
 
     Versions versions;
 
@@ -70,6 +80,10 @@ public class Downloader {
         this.gitRepo = properties.getProperty("git.repo");
         this.gitEmail = properties.getProperty("git.email");
         this.gitPassword = properties.getProperty("git.password");
+
+        this.b2Bucket = properties.getProperty("b2.bucket");
+        this.b2App = properties.getProperty("b2.app");
+        this.b2AppKey = properties.getProperty("b2.appkey");
     }
 
     public void setGitEnabled(boolean gitEnabled) {
@@ -181,6 +195,18 @@ public class Downloader {
                 }
             } else {
                 log.info("Git is disabled");
+            }
+
+            B2StorageClient b2Client = null;
+            if (!Strings.isBlank(this.b2App)) {
+                try {
+                    b2Client = B2StorageClientFactory.createDefaultFactory()
+                            .create(this.b2App, this.b2AppKey, "MCAssetDownloader");
+                } catch (Exception e) {
+                    log.log(Level.WARN, "", e);
+                }
+            } else {
+                log.info("B2 is disabled");
             }
 
             // delete any old data
@@ -359,6 +385,28 @@ public class Downloader {
                         .setCredentialsProvider(credentialsProvider)
                         .setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
                         .call();
+            }
+
+            if (b2Client != null) {
+                log.info("Uploading to b2...");
+
+                B2StorageClient finalB2Client = b2Client;
+                Files.walk(extractDirectory.toPath())
+                        .filter(Files::isRegularFile)
+                        .forEach(path -> {
+                            System.out.println(path);
+                            File file = path.toFile();
+                            String fullName = file.getPath().replaceFirst("extract/", "");
+                            System.out.println(fullName);
+                            try {
+                                finalB2Client.uploadSmallFile(B2UploadFileRequest
+                                        .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
+                                                .build(file)).build());
+                            } catch (Exception e) {
+                                log.log(Level.WARN, "", e);
+                            }
+                        });
+
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
