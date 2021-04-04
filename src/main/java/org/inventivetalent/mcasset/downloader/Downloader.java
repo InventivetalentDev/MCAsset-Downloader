@@ -31,10 +31,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -357,7 +354,7 @@ public class Downloader {
             }
             System.out.println();
 
-            createFileList(extractDirectory);
+            createFileListAndAllFile(extractDirectory);
 
             if (gitEnabled) {
                 log.info("Pushing changes to remote repo...");
@@ -394,10 +391,8 @@ public class Downloader {
                 Files.walk(extractDirectory.toPath())
                         .filter(Files::isRegularFile)
                         .forEach(path -> {
-                            System.out.println(path);
                             File file = path.toFile();
                             String fullName = file.getPath().replaceFirst("extract/", "");
-                            System.out.println(fullName);
                             try {
                                 finalB2Client.uploadSmallFile(B2UploadFileRequest
                                         .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
@@ -416,7 +411,7 @@ public class Downloader {
         System.out.println("Finished downloading " + version);
     }
 
-    void createFileList(File directory) {
+    void createFileListAndAllFile(File directory) {
         if (!directory.isDirectory()) { return; }
         JsonArray fileNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isFile)
@@ -429,14 +424,38 @@ public class Downloader {
                 .filter(s -> !".git".equals(s))
                 .sorted()
                 .collect(JsonArray::new, JsonArray::add, JsonArray::add);
-        JsonObject json = new JsonObject();
-        json.add("directories", directoryNames);
-        json.add("files", fileNames);
+        JsonObject listJson = new JsonObject();
+        listJson.add("directories", directoryNames);
+        listJson.add("files", fileNames);
         File listFile = new File(directory, "_list.json");
+        Gson gson = new Gson();
         try {
             listFile.createNewFile();
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(listFile), StandardCharsets.UTF_8))) {
-                new Gson().toJson(json, writer);
+                gson.toJson(listJson, writer);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        JsonObject allObject = new JsonObject();
+        Arrays.stream(Objects.requireNonNull(directory.listFiles()))
+                .filter(File::isFile)
+                .filter(f -> f.getName().endsWith(".json"))
+                .sorted(Comparator.comparing(File::getName))
+                .forEach(file -> {
+                    try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                        JsonObject obj = gson.fromJson(reader, JsonObject.class);
+                        allObject.add(file.getName().replace(".json", ""), obj);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+        File allFile = new File(directory, "_all.json");
+        try {
+            allFile.createNewFile();
+            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(allFile), StandardCharsets.UTF_8))) {
+                gson.toJson(allObject, writer);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -444,7 +463,7 @@ public class Downloader {
 
         Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isDirectory)
-                .forEach(this::createFileList);
+                .forEach(this::createFileListAndAllFile);
     }
 
     void downloadFile(String inputUrl, File outputFile, ProgressCallback callback) throws IOException {
