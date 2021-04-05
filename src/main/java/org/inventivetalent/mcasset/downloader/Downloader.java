@@ -32,7 +32,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -387,21 +389,51 @@ public class Downloader {
             if (b2Client != null) {
                 log.info("Uploading to b2...");
 
+                ExecutorService uploadExecutor = Executors.newFixedThreadPool(64);
+
                 B2StorageClient finalB2Client = b2Client;
-                Files.walk(extractDirectory.toPath())
+                List<Future<?>> futures = Files.walk(extractDirectory.toPath())
                         .filter(Files::isRegularFile)
-                        .forEach(path -> {
-                            File file = path.toFile();
-                            String fullName = file.getPath().replaceFirst("extract/", "");
+                        .map(path -> {
+                            final File file = path.toFile();
+                            final String fullName = file.getPath().replaceFirst("extract/", "");
                             try {
-                                finalB2Client.uploadSmallFile(B2UploadFileRequest
-                                        .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
-                                                .build(file)).build());
+                                if (file.length() > 5000000) {
+                                    return uploadExecutor.submit(() -> {
+                                        log.info("L" + fullName);
+                                        try {
+                                            finalB2Client.uploadLargeFile(B2UploadFileRequest
+                                                    .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
+                                                            .build(file)).build(), uploadExecutor);
+                                        } catch (Exception e) {
+                                            log.log(Level.WARN, "", e);
+                                        }
+                                    });
+                                } else {
+                                    return uploadExecutor.submit(() -> {
+                                        log.info("S" + fullName);
+                                        try {
+                                            finalB2Client.uploadSmallFile(B2UploadFileRequest
+                                                    .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
+                                                            .build(file)).build());
+                                        } catch (Exception e) {
+                                            log.log(Level.WARN, "", e);
+                                        }
+                                    });
+                                }
                             } catch (Exception e) {
                                 log.log(Level.WARN, "", e);
                             }
-                        });
+                            return CompletableFuture.completedFuture(null);
+                        }).collect(Collectors.toList());
 
+                for (Future<?> future : futures) {
+                    future.get(2, TimeUnit.MINUTES);
+                }
+                System.out.println("Waiting for uploads...");
+                uploadExecutor.shutdown();
+                boolean b = uploadExecutor.awaitTermination(60, TimeUnit.MINUTES);
+                System.out.println(b);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -441,24 +473,26 @@ public class Downloader {
         JsonObject allObject = new JsonObject();
         Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isFile)
-                .filter(f -> f.getName().endsWith(".json"))
+                .filter(f -> f.getName().endsWith(".json") && !"_list.json".equals(f.getName()))
                 .sorted(Comparator.comparing(File::getName))
                 .forEach(file -> {
-                    try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
                         JsonObject obj = gson.fromJson(reader, JsonObject.class);
                         allObject.add(file.getName().replace(".json", ""), obj);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 });
-        File allFile = new File(directory, "_all.json");
-        try {
-            allFile.createNewFile();
-            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(allFile), StandardCharsets.UTF_8))) {
-                gson.toJson(allObject, writer);
+        if (!allObject.keySet().isEmpty()) {
+            File allFile = new File(directory, "_all.json");
+            try {
+                allFile.createNewFile();
+                try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(allFile), StandardCharsets.UTF_8))) {
+                    gson.toJson(allObject, writer);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
         }
 
         Arrays.stream(Objects.requireNonNull(directory.listFiles()))
