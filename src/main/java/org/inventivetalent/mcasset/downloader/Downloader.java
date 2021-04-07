@@ -112,9 +112,9 @@ public class Downloader {
             return;
         }
         if ("latest".equals(version)) {
-            log.info("Downloading latest release & snapshot");
-            downloadVersion(this.versions.getLatest().getRelease());
+            log.info("Downloading latest snapshot & release");
             downloadVersion(this.versions.getLatest().getSnapshot());
+            downloadVersion(this.versions.getLatest().getRelease());
             return;
         }
 
