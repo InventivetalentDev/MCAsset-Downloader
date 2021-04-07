@@ -37,6 +37,7 @@ public class Main {
 		downloader.downloadVersion(cmd.getOptionValue("version"));
 
 		System.out.println("Done!");
+		System.exit(0);
 	}
 
 }

@@ -1,8 +1,15 @@
 package org.inventivetalent.mcasset.downloader;
 
+import com.backblaze.b2.client.B2StorageClient;
+import com.backblaze.b2.client.B2StorageClientFactory;
+import com.backblaze.b2.client.contentSources.B2ContentTypes;
+import com.backblaze.b2.client.contentSources.B2FileContentSource;
+import com.backblaze.b2.client.structures.B2UploadFileRequest;
 import com.google.gson.*;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.util.Strings;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.lib.Ref;
@@ -24,11 +31,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -42,6 +48,9 @@ public class Downloader {
     String gitRepo = "https://github.com/InventivetalentDev/minecraft-assets.git";
     String gitEmail = "user@example.com";
     String gitPassword = "myPassword";
+    String b2Bucket = "";
+    String b2App = "";
+    String b2AppKey = "";
 
     Versions versions;
 
@@ -70,6 +79,10 @@ public class Downloader {
         this.gitRepo = properties.getProperty("git.repo");
         this.gitEmail = properties.getProperty("git.email");
         this.gitPassword = properties.getProperty("git.password");
+
+        this.b2Bucket = properties.getProperty("b2.bucket");
+        this.b2App = properties.getProperty("b2.app");
+        this.b2AppKey = properties.getProperty("b2.appkey");
     }
 
     public void setGitEnabled(boolean gitEnabled) {
@@ -99,9 +112,9 @@ public class Downloader {
             return;
         }
         if ("latest".equals(version)) {
-            log.info("Downloading latest release & snapshot");
-            downloadVersion(this.versions.getLatest().getRelease());
+            log.info("Downloading latest snapshot & release");
             downloadVersion(this.versions.getLatest().getSnapshot());
+            downloadVersion(this.versions.getLatest().getRelease());
             return;
         }
 
@@ -181,6 +194,18 @@ public class Downloader {
                 }
             } else {
                 log.info("Git is disabled");
+            }
+
+            B2StorageClient b2Client = null;
+            if (!Strings.isBlank(this.b2App)) {
+                try {
+                    b2Client = B2StorageClientFactory.createDefaultFactory()
+                            .create(this.b2App, this.b2AppKey, "MCAssetDownloader");
+                } catch (Exception e) {
+                    log.log(Level.WARN, "", e);
+                }
+            } else {
+                log.info("B2 is disabled");
             }
 
             // delete any old data
@@ -331,7 +356,7 @@ public class Downloader {
             }
             System.out.println();
 
-            createFileList(extractDirectory);
+            createFileListAndAllFile(extractDirectory);
 
             if (gitEnabled) {
                 log.info("Pushing changes to remote repo...");
@@ -360,6 +385,58 @@ public class Downloader {
                         .setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
                         .call();
             }
+
+            if (b2Client != null) {
+                log.info("Uploading to b2...");
+
+                ExecutorService uploadExecutor = Executors.newFixedThreadPool(64);
+
+                B2StorageClient finalB2Client = b2Client;
+                List<Future<?>> futures = Files.walk(extractDirectory.toPath())
+                        .filter(Files::isRegularFile)
+                        .filter(p -> !p.toString().contains(".git"))
+                        .map(path -> {
+                            final File file = path.toFile();
+                            final String fullName = file.getPath().replaceFirst("extract/", "");
+                            try {
+                                if (file.length() > 5000000) {
+                                    return uploadExecutor.submit(() -> {
+                                        log.info("L" + fullName);
+                                        try {
+                                            finalB2Client.uploadLargeFile(B2UploadFileRequest
+                                                    .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
+                                                            .build(file)).build(), uploadExecutor);
+                                        } catch (Exception e) {
+                                            log.log(Level.WARN, "", e);
+                                        }
+                                    });
+                                } else {
+                                    return uploadExecutor.submit(() -> {
+                                        log.info("S" + fullName);
+                                        try {
+                                            finalB2Client.uploadSmallFile(B2UploadFileRequest
+                                                    .builder(this.b2Bucket, fullName, B2ContentTypes.B2_AUTO, B2FileContentSource
+                                                            .build(file)).build());
+                                        } catch (Exception e) {
+                                            log.log(Level.WARN, "", e);
+                                        }
+                                    });
+                                }
+                            } catch (Exception e) {
+                                log.log(Level.WARN, "", e);
+                            }
+                            return CompletableFuture.completedFuture(null);
+                        }).collect(Collectors.toList());
+
+                System.out.println("Waiting for uploads...");
+                for (Future<?> future : futures) {
+                    future.get(10, TimeUnit.MINUTES);
+                }
+                System.out.println("Waiting for upload executor...");
+                uploadExecutor.shutdown();
+                boolean b = uploadExecutor.awaitTermination(60, TimeUnit.MINUTES);
+                System.out.println(b);
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -368,7 +445,7 @@ public class Downloader {
         System.out.println("Finished downloading " + version);
     }
 
-    void createFileList(File directory) {
+    void createFileListAndAllFile(File directory) {
         if (!directory.isDirectory()) { return; }
         JsonArray fileNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isFile)
@@ -378,24 +455,51 @@ public class Downloader {
         JsonArray directoryNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isDirectory)
                 .map(File::getName)
+                .filter(s -> !".git".equals(s))
                 .sorted()
                 .collect(JsonArray::new, JsonArray::add, JsonArray::add);
-        JsonObject json = new JsonObject();
-        json.add("directories", directoryNames);
-        json.add("files", fileNames);
+        JsonObject listJson = new JsonObject();
+        listJson.add("directories", directoryNames);
+        listJson.add("files", fileNames);
         File listFile = new File(directory, "_list.json");
+        Gson gson = new Gson();
         try {
             listFile.createNewFile();
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(listFile), StandardCharsets.UTF_8))) {
-                new Gson().toJson(json, writer);
+                gson.toJson(listJson, writer);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
 
+        JsonObject allObject = new JsonObject();
+        Arrays.stream(Objects.requireNonNull(directory.listFiles()))
+                .filter(File::isFile)
+                .filter(f -> f.getName().endsWith(".json") && !"_list.json".equals(f.getName()))
+                .sorted(Comparator.comparing(File::getName))
+                .forEach(file -> {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+                        JsonObject obj = gson.fromJson(reader, JsonObject.class);
+                        allObject.add(file.getName().replace(".json", ""), obj);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+        if (!allObject.keySet().isEmpty()) {
+            File allFile = new File(directory, "_all.json");
+            try {
+                allFile.createNewFile();
+                try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(allFile), StandardCharsets.UTF_8))) {
+                    gson.toJson(allObject, writer);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
         Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isDirectory)
-                .forEach(this::createFileList);
+                .forEach(this::createFileListAndAllFile);
     }
 
     void downloadFile(String inputUrl, File outputFile, ProgressCallback callback) throws IOException {
