@@ -394,6 +394,7 @@ public class Downloader {
                 B2StorageClient finalB2Client = b2Client;
                 List<Future<?>> futures = Files.walk(extractDirectory.toPath())
                         .filter(Files::isRegularFile)
+                        .filter(p -> !p.toString().contains(".git"))
                         .map(path -> {
                             final File file = path.toFile();
                             final String fullName = file.getPath().replaceFirst("extract/", "");
