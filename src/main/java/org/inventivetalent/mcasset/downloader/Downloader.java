@@ -428,10 +428,11 @@ public class Downloader {
                             return CompletableFuture.completedFuture(null);
                         }).collect(Collectors.toList());
 
-                for (Future<?> future : futures) {
-                    future.get(2, TimeUnit.MINUTES);
-                }
                 System.out.println("Waiting for uploads...");
+                for (Future<?> future : futures) {
+                    future.get(10, TimeUnit.MINUTES);
+                }
+                System.out.println("Waiting for upload executor...");
                 uploadExecutor.shutdown();
                 boolean b = uploadExecutor.awaitTermination(60, TimeUnit.MINUTES);
                 System.out.println(b);
