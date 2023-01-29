@@ -41,8 +41,8 @@ import java.util.zip.ZipInputStream;
 @Log4j2
 public class Downloader {
 
-    static final String VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-    static final String EXTERNAL_ASSET_FORMAT = "http://resources.download.minecraft.net/%s/%s";
+    static final String VERSIONS_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+    static final String EXTERNAL_ASSET_FORMAT = "https://resources.download.minecraft.net/%s/%s";
 
     boolean gitEnabled = true;
     String gitRepo = "https://github.com/InventivetalentDev/minecraft-assets.git";
