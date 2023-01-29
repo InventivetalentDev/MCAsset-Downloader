@@ -157,7 +157,7 @@ public class Downloader {
         }
         extractBaseDirectory.mkdirs();
         File extractDirectory = new File(extractBaseDirectory, safeVersion);
-        if (!extractDirectory.exists()) { extractDirectory.mkdirs(); }
+        if (!extractDirectory.exists()) {extractDirectory.mkdirs();}
 
         try {
             // Init git
@@ -211,7 +211,7 @@ public class Downloader {
             // delete any old data
             try {
                 for (File file : extractDirectory.listFiles()) {
-                    if (file.getName().contains("git")) { continue; }
+                    if (file.getName().contains("git")) {continue;}
                     if (file.isDirectory()) {
                         FileUtils.deleteDirectory(file);
                     } else {
@@ -446,7 +446,7 @@ public class Downloader {
     }
 
     void createFileListAndAllFile(File directory) {
-        if (!directory.isDirectory()) { return; }
+        if (!directory.isDirectory()) {return;}
         JsonArray fileNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isFile)
                 .map(File::getName)
@@ -523,6 +523,14 @@ public class Downloader {
                     }
                 }
             }
+        } catch (IOException e) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getErrorStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            }
+            throw e;
         }
     }
 
