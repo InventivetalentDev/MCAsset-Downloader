@@ -487,7 +487,7 @@ public class Downloader {
                 .sorted(Comparator.comparing(File::getName))
                 .forEach(file -> {
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-                        JsonObject obj = gson.fromJson(reader, JsonObject.class);
+                        JsonElement obj = gson.fromJson(reader, JsonElement.class);
                         allObject.add(file.getName().replace(".json", ""), obj);
                     } catch (Exception e) {
                         e.printStackTrace();
