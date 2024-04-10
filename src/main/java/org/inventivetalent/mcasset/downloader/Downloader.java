@@ -307,7 +307,9 @@ public class Downloader {
                 String assetDownload = String.format(EXTERNAL_ASSET_FORMAT, entry.getValue().getHash().substring(0, 2), entry.getValue().getHash());
                 File assetOutput = new File(extractDirectory, "assets/" + entry.getKey());
                 new File(assetOutput.getParent()).mkdirs();
-                count.incrementAndGet();
+                if (count.incrementAndGet() % 10 == 0) {
+                    Thread.sleep(200);
+                }
                 downloadFile(assetDownload, assetOutput, new ProgressCallback() {
                     @Override
                     public void call(double now, double total) {
