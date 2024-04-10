@@ -157,7 +157,9 @@ public class Downloader {
         }
         extractBaseDirectory.mkdirs();
         File extractDirectory = new File(extractBaseDirectory, safeVersion);
-        if (!extractDirectory.exists()) {extractDirectory.mkdirs();}
+        if (!extractDirectory.exists()) {
+            extractDirectory.mkdirs();
+        }
 
         try {
             // Init git
@@ -211,7 +213,9 @@ public class Downloader {
             // delete any old data
             try {
                 for (File file : extractDirectory.listFiles()) {
-                    if (file.getName().contains("git")) {continue;}
+                    if (file.getName().contains("git")) {
+                        continue;
+                    }
                     if (file.isDirectory()) {
                         FileUtils.deleteDirectory(file);
                     } else {
@@ -310,7 +314,7 @@ public class Downloader {
                 if (count.incrementAndGet() % 10 == 0) {
                     Thread.sleep(200);
                 }
-                downloadFile(assetDownload, assetOutput, new ProgressCallback() {
+                downloadFileRetry(assetDownload, assetOutput, new ProgressCallback() {
                     @Override
                     public void call(double now, double total) {
                         try {
@@ -448,7 +452,9 @@ public class Downloader {
     }
 
     void createFileListAndAllFile(File directory) {
-        if (!directory.isDirectory()) {return;}
+        if (!directory.isDirectory()) {
+            return;
+        }
         JsonArray fileNames = Arrays.stream(Objects.requireNonNull(directory.listFiles()))
                 .filter(File::isFile)
                 .map(File::getName)
@@ -504,6 +510,20 @@ public class Downloader {
                 .forEach(this::createFileListAndAllFile);
     }
 
+    void downloadFileRetry(String inputUrl, File outputFile, ProgressCallback callback) throws IOException {
+        try {
+            downloadFile(inputUrl, outputFile, callback);
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+            }
+            downloadFile(inputUrl, outputFile, callback);
+        }
+    }
+
     void downloadFile(String inputUrl, File outputFile, ProgressCallback callback) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(inputUrl).openConnection();
         long totalFileSize = connection.getContentLength();
@@ -532,7 +552,6 @@ public class Downloader {
                     System.out.println(line);
                 }
             }
-            throw e;
         }
     }
 
