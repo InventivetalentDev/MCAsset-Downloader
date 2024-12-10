@@ -93,7 +93,7 @@
         <dependency>
             <groupId>com.backblaze.b2</groupId>
             <artifactId>b2-sdk-core</artifactId>
-            <version>4.0.0</version>
+            <version>6.1.1</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
