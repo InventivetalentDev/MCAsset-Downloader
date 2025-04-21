@@ -1,12 +1,11 @@
 package org.inventivetalent.mcasset.downloader.data.asset;
 
-import lombok.Data;
-
 import java.util.Map;
 
-@Data
-public class AssetObjects {
+public record AssetObjects(
+		Map<String, Asset> objects
+) {
 
-	Map<String, Asset> objects;
+
 
 }

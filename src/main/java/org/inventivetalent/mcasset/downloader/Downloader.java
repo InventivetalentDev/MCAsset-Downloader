@@ -6,9 +6,9 @@ import com.backblaze.b2.client.contentSources.B2ContentTypes;
 import com.backblaze.b2.client.contentSources.B2FileContentSource;
 import com.backblaze.b2.client.structures.B2UploadFileRequest;
 import com.google.gson.*;
-import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
@@ -38,11 +38,12 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-@Log4j2
 public class Downloader {
 
     static final String VERSIONS_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
     static final String EXTERNAL_ASSET_FORMAT = "https://resources.download.minecraft.net/%s/%s";
+
+    private final Logger log = org.apache.logging.log4j.LogManager.getLogger(Downloader.class);
 
     boolean gitEnabled = true;
     String gitRepo = "https://github.com/InventivetalentDev/minecraft-assets.git";
@@ -96,43 +97,43 @@ public class Downloader {
         this.versions = new Gson().fromJson(jsonObject, Versions.class);
 
         log.info("Versions initialized");
-        log.info("Latest: " + this.versions.getLatest().getRelease() + " release / " + this.versions.getLatest().getSnapshot() + " snapshot");
-        log.info("Found " + this.versions.getVersions().size() + " individual versions");
+        log.info("Latest: " + this.versions.latest().release() + " release / " + this.versions.latest().snapshot() + " snapshot");
+        log.info("Found " + this.versions.versions().size() + " individual versions");
     }
 
     void downloadVersion(String version) {
         if ("latest-release".equals(version)) {
             log.info("Downloading latest release");
-            downloadVersion(this.versions.getLatest().getRelease());
+            downloadVersion(this.versions.latest().release());
             return;
         }
         if ("latest-snapshot".equals(version)) {
             log.info("Downloading latest snapshot");
-            downloadVersion(this.versions.getLatest().getSnapshot());
+            downloadVersion(this.versions.latest().snapshot());
             return;
         }
         if ("latest".equals(version)) {
             log.info("Downloading latest snapshot & release");
-            downloadVersion(this.versions.getLatest().getSnapshot());
-            downloadVersion(this.versions.getLatest().getRelease());
+            downloadVersion(this.versions.latest().snapshot());
+            downloadVersion(this.versions.latest().release());
             return;
         }
 
         if ("all-snapshots".equals(version)) {
             log.info("Downloading all snapshot versions...");
-            this.versions.getVersions().stream().filter(version1 -> "snapshot".equals(version1.getType())).forEach(version1 -> downloadVersion(version1.getId()));
+            this.versions.versions().stream().filter(version1 -> "snapshot".equals(version1.type())).forEach(version1 -> downloadVersion(version1.id()));
             return;
         }
         if ("all-releases".equals(version)) {
             log.info("Downloading all release versions...");
-            this.versions.getVersions().stream().filter(version1 -> "release".equals(version1.getType())).forEach(version1 -> downloadVersion(version1.getId()));
+            this.versions.versions().stream().filter(version1 -> "release".equals(version1.type())).forEach(version1 -> downloadVersion(version1.id()));
             return;
         }
 
         // Validate version
         Version versionObject = null;
-        for (Version version1 : versions.getVersions()) {
-            if (version1.getId().equals(version)) {
+        for (Version version1 : versions.versions()) {
+            if (version1.id().equals(version)) {
                 versionObject = version1;
                 break;
             }
@@ -249,15 +250,15 @@ public class Downloader {
                         .toJson(versionObject, writer);
             }
 
-            VersionAssetDetails versionDetails = new Gson().fromJson(new JsonParser().parse(readUrl(versionObject.getUrl())), VersionAssetDetails.class);
-            downloadFile(versionObject.getUrl(), new File(extractDirectory, versionObject.getId() + ".json"), null);
+            VersionAssetDetails versionDetails = new Gson().fromJson(new JsonParser().parse(readUrl(versionObject.url())), VersionAssetDetails.class);
+            downloadFile(versionObject.url(), new File(extractDirectory, versionObject.id() + ".json"), null);
 
-            AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.getAssetIndex().getUrl())), AssetObjects.class);
+            AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.assetIndex().url())), AssetObjects.class);
 
             // Download
             log.info("Downloading version " + version + "...");
 
-            String jarDownload = versionDetails.getDownloads().getClient().getUrl();
+            String jarDownload = versionDetails.downloads().client().url();
             File tempFile = Files.createTempFile("mcasset-downloader", "").toFile();
             downloadFile(jarDownload, tempFile, null);
             System.out.println();
@@ -307,8 +308,8 @@ public class Downloader {
             log.info("Downloading external assets...");
 
             AtomicInteger count = new AtomicInteger();
-            for (Map.Entry<String, Asset> entry : assets.getObjects().entrySet()) {
-                String assetDownload = String.format(EXTERNAL_ASSET_FORMAT, entry.getValue().getHash().substring(0, 2), entry.getValue().getHash());
+            for (Map.Entry<String, Asset> entry : assets.objects().entrySet()) {
+                String assetDownload = String.format(EXTERNAL_ASSET_FORMAT, entry.getValue().hash().substring(0, 2), entry.getValue().hash());
                 File assetOutput = new File(extractDirectory, "assets/" + entry.getKey());
                 new File(assetOutput.getParent()).mkdirs();
                 if (count.incrementAndGet() % 10 == 0) {
@@ -318,7 +319,7 @@ public class Downloader {
                     @Override
                     public void call(double now, double total) {
                         try {
-                            String a = "Downloading asset " + (count.get()) + "/" + assets.getObjects().size();
+                            String a = "Downloading asset " + (count.get()) + "/" + assets.objects().size();
                             String b = (Math.round(now * 100.0) / 100.0) + "MB/" + (Math.round(total * 100.0) / 100.0) + "MB";
                             System.out.write(("\r" + String.format("%-30s %s", a, b)).getBytes());
                         } catch (IOException e) {
@@ -329,14 +330,14 @@ public class Downloader {
             }
             System.out.println();
 
-            Downloads downloads = versionDetails.getDownloads();
-            if (downloads.getClientMappings() != null && downloads.getServerMappings() != null) {
+            Downloads downloads = versionDetails.downloads();
+            if (downloads.clientMappings() != null && downloads.serverMappings() != null) {
                 // Download mappings
                 log.info("Downloading mappings...");
                 File mappingsOut = new File(extractDirectory, "mappings");
                 mappingsOut.mkdirs();
 
-                downloadFile(downloads.getClientMappings().getUrl(), new File(mappingsOut, "client.txt"), new ProgressCallback() {
+                downloadFile(downloads.clientMappings().url(), new File(mappingsOut, "client.txt"), new ProgressCallback() {
                     @Override
                     public void call(double now, double total) {
                         try {
@@ -348,7 +349,7 @@ public class Downloader {
                     }
                 });
                 System.out.println();
-                downloadFile(downloads.getServerMappings().getUrl(), new File(mappingsOut, "server.txt"), new ProgressCallback() {
+                downloadFile(downloads.serverMappings().url(), new File(mappingsOut, "server.txt"), new ProgressCallback() {
                     @Override
                     public void call(double now, double total) {
                         try {
