@@ -167,9 +167,9 @@ public class Downloader {
             Git git = null;
             CredentialsProvider credentialsProvider = null;
             if (gitEnabled) {
-                log.info("Initializing Git...");
+                log.info("Initializing Git as user {}...", gitEmail);
                 credentialsProvider = new UsernamePasswordCredentialsProvider(gitEmail, gitPassword);
-                log.info("Cloning repository...");
+                log.info("Cloning repository, branch {}...", safeVersion);
                 git = Git.cloneRepository()
                         .setURI(gitRepo)
                         .setBranchesToClone(Arrays.asList("master", safeVersion))
