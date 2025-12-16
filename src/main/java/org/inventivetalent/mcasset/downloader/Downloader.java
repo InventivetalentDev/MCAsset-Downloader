@@ -256,9 +256,8 @@ public class Downloader {
             AssetObjects assets = new Gson().fromJson(new JsonParser().parse(readUrl(versionDetails.assetIndex().url())), AssetObjects.class);
 
             // Download
-            log.info("Downloading version " + version + "...");
-
             String jarDownload = versionDetails.downloads().client().url();
+            log.info("Downloading version " + version + " from " + jarDownload + "...");
             File tempFile = Files.createTempFile("mcasset-downloader", "").toFile();
             downloadFile(jarDownload, tempFile, null);
             System.out.println();
@@ -272,30 +271,46 @@ public class Downloader {
                 int count = 0;
                 int count1 = 0;
                 byte[] buffer = new byte[1024];
+
                 while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-                    if (zipEntry.getName().startsWith("assets")) {
-                        File extractFile = new File(extractDirectory, zipEntry.getName());
-                        new File(extractFile.getParent()).mkdirs();
-                        try (FileOutputStream outputStream = new FileOutputStream(extractFile)) {
-                            int length;
-                            while ((length = zipInputStream.read(buffer)) > 0) {
-                                outputStream.write(buffer, 0, length);
-                            }
-                        }
+                    String name = zipEntry.getName();
 
-                        System.out.write(("\rExtracted " + (count++) + " asset files " + zipEntry.getName()).getBytes());
+                    // Only extract what we care about
+                    if (!(name.startsWith("assets/") || name.startsWith("data/"))) {
+                        continue;
                     }
-                    if (zipEntry.getName().startsWith("data")) {
-                        File extractFile = new File(extractDirectory, zipEntry.getName());
-                        new File(extractFile.getParent()).mkdirs();
-                        try (FileOutputStream outputStream = new FileOutputStream(extractFile)) {
-                            int length;
-                            while ((length = zipInputStream.read(buffer)) > 0) {
-                                outputStream.write(buffer, 0, length);
-                            }
-                        }
 
-                        System.out.write(("\rExtracted " + (count1++) + " data files " + zipEntry.getName()).getBytes());
+                    File extractFile = new File(extractDirectory, name);
+
+                    if (zipEntry.isDirectory()) {
+                        // Explicit directory entry (may or may not exist in newer jars)
+                        if (!extractFile.mkdirs() && !extractFile.isDirectory()) {
+                            log.warn("Failed to create directory {}", extractFile);
+                        }
+                        continue;
+                    }
+
+                    // Implicit directory handling
+                    File parent = extractFile.getParentFile();
+                    if (parent != null && !parent.mkdirs() && !parent.isDirectory()) {
+                        log.warn("Failed to create parent directories for {}", extractFile);
+                        continue;
+                    }
+
+                    try (FileOutputStream outputStream = new FileOutputStream(extractFile)) {
+                        int length;
+                        while ((length = zipInputStream.read(buffer)) > 0) {
+                            outputStream.write(buffer, 0, length);
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to extract {}", name, e);
+                        continue;
+                    }
+
+                    if (name.startsWith("assets/")) {
+                        System.out.write(("\rExtracted " + (count++) + " asset files " + name).getBytes());
+                    } else {
+                        System.out.write(("\rExtracted " + (count1++) + " data files " + name).getBytes());
                     }
                 }
             }
