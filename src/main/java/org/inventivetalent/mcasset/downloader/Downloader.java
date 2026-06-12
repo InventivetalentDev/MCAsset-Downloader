@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.lib.TextProgressMonitor;
@@ -169,10 +168,24 @@ public class Downloader {
             if (gitEnabled) {
                 log.info("Initializing Git as user {}...", gitEmail);
                 credentialsProvider = new UsernamePasswordCredentialsProvider(gitEmail, gitPassword);
-                log.info("Cloning repository, branch {}...", safeVersion);
+
+                boolean branchExists = Git.lsRemoteRepository()
+                        .setRemote(gitRepo)
+                        .setHeads(true)
+                        .setCredentialsProvider(credentialsProvider)
+                        .call().stream()
+                        .anyMatch(ref -> ref.getName().equals("refs/heads/" + safeVersion));
+
+                // The previous version's files get deleted and fully re-extracted anyway,
+                // so only the branch tip is needed as the commit parent - no history, no tags
+                String cloneBranch = branchExists ? safeVersion : "master";
+                log.info("Cloning repository, branch {} (depth 1)...", cloneBranch);
                 git = Git.cloneRepository()
                         .setURI(gitRepo)
-                        .setBranchesToClone(Arrays.asList("master", safeVersion))
+                        .setBranch(cloneBranch)
+                        .setBranchesToClone(Collections.singletonList("refs/heads/" + cloneBranch))
+                        .setDepth(1)
+                        .setNoTags()
                         .setDirectory(extractDirectory)
                         .setCredentialsProvider(credentialsProvider)
                         .setProgressMonitor(new TextProgressMonitor(new OutputStreamWriter(System.out)))
@@ -181,16 +194,12 @@ public class Downloader {
                 config.setString("user", null, "email", gitEmail);
                 config.save();
 
-                // git checkout
-                Ref checkout = null;
-                try {
-                    checkout = git.checkout().setName(safeVersion).call();
-                } catch (RefNotFoundException ignored) {
-                }
-                if (checkout == null) {
-                    checkout = git.branchCreate().setName(safeVersion).call();
-                    checkout = git.checkout().setName(safeVersion).call();
+                if (!branchExists) {
+                    log.info("Branch {} does not exist yet, creating it from master", safeVersion);
+                    git.branchCreate().setName(safeVersion).call();
+                    git.checkout().setName(safeVersion).call();
                     git.commit()
+                            .setAllowEmpty(true)
                             .setMessage("Create new branch for version " + safeVersion)
                             .setCommitter("InventiveBot", gitEmail)
                             .call();
