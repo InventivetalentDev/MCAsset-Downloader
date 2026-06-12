@@ -336,8 +336,8 @@ public class Downloader {
                 String assetDownload = String.format(EXTERNAL_ASSET_FORMAT, entry.getValue().hash().substring(0, 2), entry.getValue().hash());
                 File assetOutput = new File(extractDirectory, "assets/" + entry.getKey());
                 new File(assetOutput.getParent()).mkdirs();
-                if (count.incrementAndGet() % 10 == 0) {
-                    Thread.sleep(200);
+                if (count.incrementAndGet() % 50 == 0) {
+                    Thread.sleep(100);
                 }
                 downloadFileRetry(assetDownload, assetOutput, new ProgressCallback() {
                     @Override
