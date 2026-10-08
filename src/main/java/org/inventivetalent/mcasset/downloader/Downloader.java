@@ -284,8 +284,10 @@ public class Downloader {
                 while ((zipEntry = zipInputStream.getNextEntry()) != null) {
                     String name = zipEntry.getName();
 
-                    // Only extract what we care about
-                    if (!(name.startsWith("assets/") || name.startsWith("data/"))) {
+                    // Keep the game's metadata separate from the generated download metadata.
+                    if ("version.json".equals(name)) {
+                        name = "game-version.json";
+                    } else if (!(name.startsWith("assets/") || name.startsWith("data/"))) {
                         continue;
                     }
 
@@ -318,7 +320,7 @@ public class Downloader {
 
                     if (name.startsWith("assets/")) {
                         System.out.write(("\rExtracted " + (count++) + " asset files " + name).getBytes());
-                    } else {
+                    } else if (name.startsWith("data/")) {
                         System.out.write(("\rExtracted " + (count1++) + " data files " + name).getBytes());
                     }
                 }
